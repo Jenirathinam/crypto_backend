@@ -3,13 +3,31 @@ import walletService from "../service/walletService.js"
 
 const walletController = {
 
+    // createWallet: async (req, res) => {
+
+    //     const { email, password, privateKey } = req.body
+    //     console.log(req.body)
+    //     try {
+    //         if (!email || !password || !privateKey) {
+    //             throw new Error("email,password,privateKey required")
+    //         }
+
+    //         const createWallet = await walletService.createWallet(req.body)
+    //         res.status(200).json({ msg: "stored successfully", token: createWallet })
+    //     } catch (error) {
+    //         res.status(500).json({ msg: "Failed to create wallet", error: error.message })
+    //     }
+
+
+    // },
+
     createWallet: async (req, res) => {
 
-        const { email, password, privateKey } = req.body
+        const { mnemonic,address,aliasName,isImported,balance,publicKey, privateKey } = req.body
         console.log(req.body)
         try {
-            if (!email || !password || !privateKey) {
-                throw new Error("email,password,privateKey required")
+            if ( !mnemonic || !address ||!aliasName ||!isImported ||!balance ||!publicKey || !privateKey) {
+                throw new Error(" mnemonic,address,aliasName,isImported,balance,publicKey,privateKey required")
             }
 
             const createWallet = await walletService.createWallet(req.body)
@@ -140,7 +158,7 @@ const walletController = {
       
         try {
           const transactions = await walletService.fetchTransactions(address);
-          res.status(500).json({ msg: "success",transactions })
+          res.status(200).json({ msg: "success",transactions })
         } catch (error) {
           res.status(500).send('Error fetching transactions');
         }
@@ -151,7 +169,7 @@ const walletController = {
       
         try {
           const getBalance = await walletService.getBalance(address);
-          res.status(500).json({ msg: "success",getBalance })
+          res.status(200).json({ msg: "success",getBalance })
         } catch (error) {
           res.status(500).send('Error fetching getBalance');
         }

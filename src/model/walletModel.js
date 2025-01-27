@@ -2,8 +2,13 @@
 import mongoose from "mongoose";
 
 const walletSchema = new mongoose.Schema({
-    email: { type: String, required: true },
-    password: { type: String, required: true },
+    // email: { type: String, required: true },
+    // password: { type: String, required: true },
+   
+    aliasName:{type: String, required: true},
+    isImported:{type: Boolean, required: true},
+    balance:{type: Number, required: true},
+    publicKey:{type: String, required: true},
     privateKey: { type: String, required: true },
     deviceToken: {
         type: String,
