@@ -54,7 +54,7 @@ const walletService = {
     
                 wallet = await walletModel.findOneAndUpdate(
                     { address },
-                    { balance: getBalance.result }, 
+                    {deviceToken, balance: getBalance.result }, 
                    {
                     new:true
                    }
