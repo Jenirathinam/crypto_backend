@@ -23,13 +23,10 @@ const walletController = {
 
     createWallet: async (req, res) => {
 
-        const { mnemonic,address,aliasName,isImported,balance,publicKey, privateKey } = req.body
+        const { mnemonic,address,aliasName,isImported,balance,deviceToken,publicKey, privateKey } = req.body
         console.log(req.body)
         try {
-            if ( !mnemonic || !address ||!aliasName ||!isImported ||!balance ||!publicKey || !privateKey) {
-                throw new Error(" mnemonic,address,aliasName,isImported,balance,publicKey,privateKey required")
-            }
-
+          
             const createWallet = await walletService.createWallet(req.body)
             res.status(200).json({ msg: "stored successfully", token: createWallet })
         } catch (error) {

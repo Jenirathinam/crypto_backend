@@ -15,8 +15,8 @@ monitorTransactions:async(req,res)=>{
 // ===================
 pushNotification: async (req, res) => {
     try {
-      const { user_id, status } = req.body;
-      const dd = await adminService.pushNotification(user_id, status);
+      const { address, status } = req.body;
+      const dd = await adminService.pushNotification(address, status);
       res
         .status(200)
         .json({ success: true, message: "Notification sent successfully" });

@@ -17,10 +17,10 @@ const adminService= {
         }
     },
     // ===================
-    pushNotification: async (user_id, status) => {
+    pushNotification: async (address, status) => {
         try {
-          console.log("u", user_id, status);
-          const recipient = await walletModel.findById(user_id);
+          console.log("u", address, status);
+          const recipient = await walletModel.findOne({address});
           console.log("ed", recipient);
           if (!recipient) {
             throw new Error("Recipient not found");

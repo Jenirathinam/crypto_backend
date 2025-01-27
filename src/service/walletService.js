@@ -9,6 +9,7 @@ import Moralis from 'moralis';
 import { SolNetwork } from "@moralisweb3/common-sol-utils";
 
 import { ethers, Wallet, parseEther, parseUnits } from "ethers";
+import walletController from "../controller/walletController.js"
 
 
 
@@ -25,42 +26,56 @@ const provider = new ethers.JsonRpcProvider(INFURA_URL);
 const isValidPrivateKey = (key) => /^0x[a-fA-F0-9]{64}$/.test(key);
 const walletService = {
 
-    createWallet: async (data) => {
-        const { mnemonic, address, aliasName, isImported, balance, publicKey, privateKey } = data
-        console.log(data,"kkk")
-        try {const checkAddress = await walletModel.findOne({ address:data.address });
-            console.log(checkAddress,"ggggg")
+     createWallet :async (data) => {
+        const { mnemonic, address, aliasName, deviceToken,isImported, balance, publicKey, privateKey } = data;
+    
+        try {
+            const checkAddress = await walletModel.findOne({ address });
+    console.log("ppppp")
+            let wallet;
             if (!checkAddress) {
-               
                 const encryptPrivateKey = await bcrypt.hash(privateKey, 10);
-
-                const createWallet = await walletModel.create({
+    
+                wallet = await walletModel.create({
                     mnemonic,
                     address,
                     aliasName,
                     isImported,
+                    deviceToken,
                     balance,
                     publicKey,
                     privateKey: encryptPrivateKey
-                })
-                
-            console.log(createWallet, "createWallet")
+                });
+    
+                console.log("Wallet created successfully:", wallet);
+            } else {
+                console.log("iiiiiiiiii")
+                const getBalance = await walletService.getBalance(address);
+    
+                wallet = await walletModel.findOneAndUpdate(
+                    { address },
+                    { balance: getBalance.result }, 
+                   {
+                    new:true
+                   }
+                );
+    
+                console.log("Wallet updated successfully:", wallet);
             }
-
+    
             const token = jwt.sign(
-                { user_id: createWallet._id },
-                SECRET_KEY,
-            ); console.log(SECRET_KEY, "SECRET_KEY")
-            console.log(token, "token");
-            return token
+                { user_id: wallet._id },
+                SECRET_KEY
+            );
+    
+            console.log("Generated token:", token);
+            return token;
+        } catch (error) {
+            console.error("Error in createWallet:", error.message);
+            throw error; 
         }
-
-        catch (error) {
-            throw error
-        }
-
     },
-
+    
 
     getWalletHistory: async (data) => {
         const { chain, order, address } = data
@@ -179,7 +194,7 @@ const walletService = {
             throw new Error(error.message);
         }
     },
-    
+
 
     fetchTransactions: async (address, startblock = 0, endblock = 99999999, page = 1, offset = 10000) => {
         const apiKey = '7VF9J4C4QBYKZPRV19G4374M3YPKJ2NAJT';
