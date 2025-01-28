@@ -26,16 +26,18 @@ const provider = new ethers.JsonRpcProvider(INFURA_URL);
 const isValidPrivateKey = (key) => /^0x[a-fA-F0-9]{64}$/.test(key);
 const walletService = {
 
-     createWallet :async (data) => {
-        const { mnemonic, address, aliasName, deviceToken,isImported, balance, publicKey, privateKey } = data;
-    
+    createWallet: async (data) => {
+        const { mnemonic, address, aliasName, deviceToken, isImported, balance, publicKey, privateKey } = data;
+
         try {
             const checkAddress = await walletModel.findOne({ address });
-    console.log("ppppp")
+            console.log("Checking wallet address existence:", checkAddress);
+
             let wallet;
-            if (!checkAddress) {
+
+            if (isImported == false) {
+
                 const encryptPrivateKey = await bcrypt.hash(privateKey, 10);
-    
                 wallet = await walletModel.create({
                     mnemonic,
                     address,
@@ -44,38 +46,53 @@ const walletService = {
                     deviceToken,
                     balance,
                     publicKey,
-                    privateKey: encryptPrivateKey
+                    privateKey: encryptPrivateKey,
                 });
-    
+
                 console.log("Wallet created successfully:", wallet);
             } else {
-                console.log("iiiiiiiiii")
-                const getBalance = await walletService.getBalance(address);
-    
-                wallet = await walletModel.findOneAndUpdate(
-                    { address },
-                    {deviceToken, balance: getBalance.result }, 
-                   {
-                    new:true
-                   }
-                );
-    
-                console.log("Wallet updated successfully:", wallet);
+                console.log("Handling imported wallet...");
+
+                if (checkAddress) {
+                    wallet = await walletModel.findOneAndUpdate(
+                        { address },
+                        { deviceToken, balance },
+                        { new: true }
+                    );
+
+                    console.log("Wallet updated successfully:", wallet);
+                } else {
+                    const encryptPrivateKey = await bcrypt.hash(privateKey, 10);
+
+                    wallet = await walletModel.create({
+                        mnemonic,
+                        address,
+                        aliasName,
+                        isImported,
+                        deviceToken,
+                        balance,
+                        publicKey,
+                        privateKey: encryptPrivateKey,
+                    });
+
+                    console.log("Imported wallet created successfully:", wallet);
+                }
             }
-    
+
             const token = jwt.sign(
                 { user_id: wallet._id },
                 SECRET_KEY
             );
-    
+
             console.log("Generated token:", token);
             return token;
         } catch (error) {
             console.error("Error in createWallet:", error.message);
-            throw error; 
+            throw error;
         }
     },
-    
+
+
 
     getWalletHistory: async (data) => {
         const { chain, order, address } = data
