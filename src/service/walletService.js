@@ -234,7 +234,7 @@ const walletService = {
 
         try {
             const response = await axios.get(url);
-            console.log(response.data, "uuu")
+            // console.log(response.data, "uuu")
             return response.data;
         } catch (error) {
             console.error('Error fetching transactions:', error);
@@ -292,121 +292,137 @@ const walletService = {
     // ==============
 
     sendTransaction: async (data) => {
-
-        console.log(data,"fffff")
+        console.log(data, "fffff");
         const { privateKey, toAddress, amountInEther } = data;
         const maxRetries = 10;
         const retryInterval = 5000;
-        // console.log(privateKey, toAddress, amountInEther)
-        // console.log(privateKey, "poi1")
+
         try {
             if (typeof data === "string") {
                 try {
-                    data = JSON.parse(data);  
+                    data = JSON.parse(data);
                     console.log("Parsed data:", data);
                 } catch (error) {
                     console.error("Invalid JSON format. Unable to parse.");
                     return;
                 }
             }
-            console.log(data.privateKey, "poi2")
-            
-            const privateKey=data.privateKey;
-            if (!privateKey) {
-                throw new Error("Private key is missing or undefined.");
-            }
-            // console.log(amountInEther, "poi")
-            const formattedPrivateKey = privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`;
+
+            const formattedPrivateKey = privateKey.startsWith("0x") ? privateKey : `0x${privateKey}`;
 
             if (!ethers.isHexString(formattedPrivateKey, 32)) {
-                throw new Error('Invalid private key format. Ensure it is a valid 64-character hexadecimal string prefixed with "0x".');
+                throw new Error("Invalid private key format.");
             }
 
             const wallet = new ethers.Wallet(formattedPrivateKey, provider);
-
             const nonce = await provider.getTransactionCount(wallet.address);
 
             const tx = {
                 to: data.toAddress,
-                value: parseEther(data.amountInEther), 
-                gasLimit: 21000, 
-                maxFeePerGas: parseUnits("30", "gwei"), 
+                value: parseEther(data.amountInEther),
+                gasLimit: 21000,
+                maxFeePerGas: parseUnits("30", "gwei"),
                 maxPriorityFeePerGas: parseUnits("2", "gwei"),
-                nonce, 
-                chainId: 11155111, 
+                nonce,
+                chainId: 11155111,
             };
 
-            console.log('Transaction object:', tx);
+            console.log("Transaction object:", tx);
 
             const txResponse = await wallet.sendTransaction(tx);
             console.log(`Transaction sent! Hash: ${txResponse.hash}`);
 
             const receipt = await txResponse.wait();
-            console.log('Transaction confirmed!', receipt);
+            console.log("Transaction confirmed!", receipt);
 
             let retries = 0;
             let transactionFound = false;
+            let matchedTransaction = null;
 
             while (retries < maxRetries && !transactionFound) {
                 console.log(`Checking transactions... Attempt ${retries + 1}/${maxRetries}`);
+                await new Promise((resolve) => setTimeout(resolve, retryInterval));
 
-                
-                const fetchedTransactions = await walletService.fetchTransactions(data.toAddress);
+                const getTransactions = await walletService.fetchTransactions(toAddress);
+                console.log("Fetched transactions:", getTransactions);
 
-                if (fetchedTransactions?.result && Array.isArray(fetchedTransactions.result)) {
-              
-                    transactionFound = fetchedTransactions.result.some((tx) => tx.hash === txResponse.hash);
+                if (getTransactions?.result?.length) {
+                    for (let tx of getTransactions.result) {
+                        console.log(`Comparing ${tx.hash} with ${txResponse.hash}`);
+
+                        if (tx.hash === txResponse.hash) {
+                            transactionFound = true;
+                            matchedTransaction = tx;
+                            break;
+                        }
+                    }
                 }
 
-                if (!transactionFound) {
-                    retries++;
-                    console.log(`Transaction not found, retrying in ${retryInterval / 1000} seconds...`);
-                    await new Promise((resolve) => setTimeout(resolve, retryInterval));
-                }
+                retries++;
             }
 
-            if (transactionFound) {
+            if (transactionFound && matchedTransaction) {
                 console.log("Transaction found in fetched transactions.");
 
-                const transactionDetails = {
-                    receipt,
-                };
-
+                // Store the matched transaction in MongoDB
                 const storedTransaction = await transactionModel.create({
-                    blockNumber: transactionDetails.receipt.blockNumber,
-                    from: transactionDetails.receipt.from,
-                    to: transactionDetails.receipt.to,
-                    index: transactionDetails.receipt.index,
-                    status: transactionDetails.receipt.status,
-                    hash: transactionDetails.receipt.hash,
-                    logsBloom: transactionDetails.receipt.logsBloom,
-                    blockHash: transactionDetails.receipt.blockHash,
-                    transactionIndex: transactionDetails.receipt.transactionIndex,
-                    gasPrice: transactionDetails.receipt.gasPrice,
-                    contractAddress: transactionDetails.receipt.contractAddress,
-                    cumulativeGasUsed: transactionDetails.receipt.cumulativeGasUsed.toString(),
-                    gasUsed: transactionDetails.receipt.gasUsed.toString(),
+                    blockNumber: matchedTransaction.blockNumber,
+                    timeStamp: matchedTransaction.timeStamp,
+                    hash: matchedTransaction.hash,
+                    nonce: matchedTransaction.nonce,
+                    blockHash: matchedTransaction.blockHash,
+                    transactionIndex: matchedTransaction.transactionIndex,
+                    from: matchedTransaction.from,
+                    to: matchedTransaction.to,
+                    value: matchedTransaction.value,
+                    gas: matchedTransaction.gas,
+                    gasPrice: matchedTransaction.gasPrice,
+                    isError: matchedTransaction.isError,
+                    txreceipt_status: matchedTransaction.txreceipt_status,
+                    input: matchedTransaction.input,
+                    contractAddress: matchedTransaction.contractAddress,
+                    cumulativeGasUsed: matchedTransaction.cumulativeGasUsed,
+                    gasUsed: matchedTransaction.gasUsed,
+                    confirmations: matchedTransaction.confirmations,
+                    methodId: matchedTransaction.methodId,
+                    functionName: matchedTransaction.functionName,
                 });
 
                 console.log("Stored transaction:", storedTransaction);
+
                 const getAddress = await walletModel.findOne({ address: storedTransaction.to });
                 console.log(getAddress, "getAddress");
                 const name = getAddress.aliasName;
                 const message = `${name}  ${amountInEther}ETH received successfully`;
-                const deviceToken = getAddress.deviceToken;
+                const deviceToken = getAddress.deviceToken
                 const pushNotification = await adminService.pushNotification(deviceToken, message)
                 console.log(pushNotification, "push")
-                return storedTransaction;
+
+                return matchedTransaction;
             } else {
                 console.log("Transaction not found after maximum retries.");
-                throw new Error('Transaction not found after maximum retries.');
+                throw new Error("Transaction not found after maximum retries.");
             }
         } catch (error) {
-            console.error('Error sending transaction:', error.message || error);
-            throw new Error(error.message || 'Internal server error');
+            console.error("Error sending transaction:", error.message || error);
+            throw new Error(error.message || "Internal server error");
+        }
+    },
+    // ===================
+    updateDeviceToken: async (data) => {
+        const { address, deviceToken } = data
+
+        try {
+            const updateDeviceToken = await walletModel.findOneAndUpdate({ address }, { deviceToken: deviceToken },
+                {
+                    new: true
+                }
+            )
+            return updateDeviceToken
+        } catch (error) {
+            throw new Error(error.message || "Internal server error");
         }
     }
-
 
 
 }

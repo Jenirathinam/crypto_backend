@@ -5,8 +5,11 @@ import walletModel from "../model/walletModel.js";
 import admin from 'firebase-admin';
 import serviceAccount from "../../src/firebases.json"assert { type: 'json' }
 
+
 admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
+  credential: admin.credential.cert(serviceAccount),
+  
+  
 });
 
 const adminService= {

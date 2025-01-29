@@ -3,16 +3,25 @@ import mongoose from "mongoose";
 
 const transactionSchema = new mongoose.Schema({
     blockNumber: { type: String, required: true },
+    // timeStamp: { type: String, required: true },
+    hash: { type: String, unique: true, required: true },
+    nonce: { type: String, required: true },
+    blockHash: { type: String, required: true },
+    transactionIndex: { type: String, required: true },
     from: { type: String, required: true },
     to: { type: String, required: true },
-    status: { type: String, required: true },
-    hash: { type: String, required: true },
-    logsBloom: { type: String, required: true },
-    blockHash: { type: String, required: true },
+    value: { type: String, required: true }, // Store as string to avoid precision issues
+    gas: { type: String, required: true },
     gasPrice: { type: String, required: true },
-    index: { type: Number, required: true },
+    isError: { type: String, required: true },
+    txreceipt_status: { type: String, required: true },
+    input: { type: String },
+    contractAddress: { type: String, default: "" },
     cumulativeGasUsed: { type: String, required: true },
     gasUsed: { type: String, required: true },
+    confirmations: { type: String, required: true },
+    methodId: { type: String, default: "" },
+    functionName: { type: String, default: "" },
     timeStamp: { type: Date, default: Date.now() }
 }, { versionKey: false })
 

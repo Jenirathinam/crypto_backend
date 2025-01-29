@@ -23,5 +23,6 @@ router.get('/getBalance/:address', walletController.getBalance);
 
 router.post('/transaction', walletController.sendTransaction);
 
+router.put("/updateDeviceToken",walletController.updateDeviceToken);
 
 export default router
