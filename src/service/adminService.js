@@ -1,8 +1,14 @@
 import notificationModel from "../model/notification.js";
 import transactionModel from "../model/TransactionModel.js";
 import walletModel from "../model/walletModel.js";
-import { Expo } from "expo-server-sdk";
-const expo = new Expo();
+
+import admin from 'firebase-admin';
+import serviceAccount from "../../src/firebases.json"assert { type: 'json' }
+
+admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+});
+
 const adminService= {
     monitorTransactions: async () => {
         console.log("Starting monitorTransactions");
@@ -17,72 +23,28 @@ const adminService= {
         }
     },
     // ===================
-    pushNotification: async (address, status) => {
-        try {
-          console.log("u", address, status);
-          const recipient = await walletModel.findOne({address});
-          console.log("ed", recipient);
-          if (!recipient) {
-            throw new Error("Recipient not found");
+    pushNotification:async (token, msg) => {
+      const message = {
+          notification: {
+              title:"Crypto Notification",
+              body:msg,
+          },
+          token,
+      };
+  console.log(message,"kkkkkk")
+      try {
+          const response = await admin.messaging().send(message);
+          console.log('Notification sent successfully:', response);
+      } catch (error) {
+          if (error.code === 'messaging/registration-token-not-registered') {
+              console.error('Token not registered, removing from database...');
+              // Remove the invalid token from your database
+              // Example: await UserModel.updateOne({ fcmToken: token }, { $unset: { fcmToken: 1 } });
+          } else {
+              console.error('Error sending notification:', error);
           }
-    
-          let deviceToken;
-          deviceToken= recipient.deviceToken;
-    
-          if (!deviceToken) {
-            throw new Error("Device token not found for the recipient");
-          }
-    
-          const messageInfo = await notificationModel.findOne({ status });
-          if (!messageInfo) {
-            throw new Error(`Message not found for status: ${status}`);
-          }
-          const message = messageInfo.message;
-    
-          const tickets = await adminService.sendNotificationToDevice(
-            deviceToken,
-            message
-          );
-          // console.log("Tickets:", tickets);
-          return tickets;
-        } catch (error) {
-          console.error("Error sending notification:", error);
-          throw error;
-        }
-      },
-    
-      // ===========================================
-      sendNotificationToDevice: async (deviceToken, message) => {
-        console.log("Device token:", deviceToken, message);
-        try {
-          const pushMessage = {
-            to: deviceToken,
-            sound: "default",
-            body: message,
-          };
-    
-          console.log("Push message:", pushMessage);
-    
-          const tickets = await expo.sendPushNotificationsAsync([pushMessage]);
-          console.log("Tickets:", tickets);
-    
-          for (const ticket of tickets) {
-            if (ticket.status === "ok") {
-              console.log(`Notification sent successfully to ${ticket.id}`);
-            } else {
-              console.error(`Error sending notification: ${ticket.message}`);
-              if (ticket.details && ticket.details.error) {
-                console.error(`Error details: ${ticket.details.error}`);
-              }
-            }
-          }
-          console.log("tickets", tickets);
-          return tickets;
-        } catch (error) {
-          console.error("Error sending notification:", error);
-          throw error;
-        }
-      },
+      }
+  }
     
 }
 

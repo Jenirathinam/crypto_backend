@@ -10,18 +10,19 @@ import { SolNetwork } from "@moralisweb3/common-sol-utils";
 
 import { ethers, Wallet, parseEther, parseUnits } from "ethers";
 import walletController from "../controller/walletController.js"
+import transactionModel from "../model/TransactionModel.js"
+import adminController from "../controller/admincontroller.js"
+import notificationModel from "../model/notification.js"
+import adminService from "./adminService.js"
 
 
 
 const apiKey = await Moralis.start({
     apiKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJub25jZSI6IjNmMzhlOTAyLTdlNGYtNGU5Zi05NTBiLTU4ZjU3N2JjYzQ4NSIsIm9yZ0lkIjoiMzk4MDMxIiwidXNlcklkIjoiNDA4OTkyIiwidHlwZUlkIjoiMzEyZGY1Y2UtY2QzMC00Yzc0LWFiNjQtMDY3NzRkZDYwYTkwIiwidHlwZSI6IlBST0pFQ1QiLCJpYXQiOjE3MTk0OTAxOTYsImV4cCI6NDg3NTI1MDE5Nn0.KTIJqXydFFysWU5fI1lzJ2lWMbj8E5CNiUotW-HZAfk",
 });
-
 const INFURA_URL = `https://sepolia.infura.io/v3/67048bd8b88444cbb4d0aee7adcbffd1`;
 
-// Initialize the provider
 const provider = new ethers.JsonRpcProvider(INFURA_URL);
-
 
 const isValidPrivateKey = (key) => /^0x[a-fA-F0-9]{64}$/.test(key);
 const walletService = {
@@ -290,96 +291,122 @@ const walletService = {
 
     // ==============
 
-
     sendTransaction: async (data) => {
-        const { privateKey, toAddress, amountInEther } = data;
-        const maxRetries = 10; // Maximum number of retries (adjust as necessary)
-        const retryInterval = 5000; // Interval between retries in milliseconds (5 seconds)
 
+        console.log(data,"fffff")
+        const { privateKey, toAddress, amountInEther } = data;
+        const maxRetries = 10;
+        const retryInterval = 5000;
+        // console.log(privateKey, toAddress, amountInEther)
+        // console.log(privateKey, "poi1")
         try {
+            if (typeof data === "string") {
+                try {
+                    data = JSON.parse(data);  
+                    console.log("Parsed data:", data);
+                } catch (error) {
+                    console.error("Invalid JSON format. Unable to parse.");
+                    return;
+                }
+            }
+            console.log(data.privateKey, "poi2")
+            
+            const privateKey=data.privateKey;
+            if (!privateKey) {
+                throw new Error("Private key is missing or undefined.");
+            }
+            // console.log(amountInEther, "poi")
             const formattedPrivateKey = privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`;
 
-            // Validate private key format
-            if (!isValidPrivateKey(formattedPrivateKey)) {
+            if (!ethers.isHexString(formattedPrivateKey, 32)) {
                 throw new Error('Invalid private key format. Ensure it is a valid 64-character hexadecimal string prefixed with "0x".');
             }
 
-            // Create wallet instance
             const wallet = new ethers.Wallet(formattedPrivateKey, provider);
 
-            // Get wallet nonce
             const nonce = await provider.getTransactionCount(wallet.address);
-            console.log(`Wallet Address: ${wallet.address}`);
-            console.log(`Nonce: ${nonce}`);
 
-            // Create the transaction
             const tx = {
-                to: toAddress,
-                value: parseEther(amountInEther), // Amount to send
-                gasLimit: 21000, // Gas limit for basic ETH transfer
-                maxFeePerGas: parseUnits("30", "gwei"), // Adjust gas price
+                to: data.toAddress,
+                value: parseEther(data.amountInEther), 
+                gasLimit: 21000, 
+                maxFeePerGas: parseUnits("30", "gwei"), 
                 maxPriorityFeePerGas: parseUnits("2", "gwei"),
-                chainId: 11155111, // Sepolia testnet chain ID
+                nonce, 
+                chainId: 11155111, 
             };
 
             console.log('Transaction object:', tx);
 
-            // Sign and send the transaction
             const txResponse = await wallet.sendTransaction(tx);
             console.log(`Transaction sent! Hash: ${txResponse.hash}`);
 
-            // Wait for confirmation
             const receipt = await txResponse.wait();
             console.log('Transaction confirmed!', receipt);
 
-            // Initialize retry logic
             let retries = 0;
             let transactionFound = false;
 
             while (retries < maxRetries && !transactionFound) {
                 console.log(`Checking transactions... Attempt ${retries + 1}/${maxRetries}`);
 
-                // Fetch transactions for the address
-                const getTraction = await walletService.fetchTransactions(toAddress);
+                
+                const fetchedTransactions = await walletService.fetchTransactions(data.toAddress);
 
-                console.log("Fetched transactions:", getTraction);
-
-                if (getTraction && getTraction.result && Array.isArray(getTraction.result)) {
-                    // Loop through each transaction in the result array
-                    for (let tx of getTraction.result) {
-                        console.log(`Comparing ${tx.hash} with ${txResponse.hash}`); // Debugging comparison
-
-                        if (tx.hash === txResponse.hash) {
-                            transactionFound = true;
-                            break;
-                        }
-                    }
+                if (fetchedTransactions?.result && Array.isArray(fetchedTransactions.result)) {
+              
+                    transactionFound = fetchedTransactions.result.some((tx) => tx.hash === txResponse.hash);
                 }
 
                 if (!transactionFound) {
                     retries++;
                     console.log(`Transaction not found, retrying in ${retryInterval / 1000} seconds...`);
-                    await new Promise(resolve => setTimeout(resolve, retryInterval)); // Wait for retry interval
+                    await new Promise((resolve) => setTimeout(resolve, retryInterval));
                 }
             }
 
-            // Return response if transaction is found after retries
             if (transactionFound) {
                 console.log("Transaction found in fetched transactions.");
-                return {
-                    transactionHash: txResponse.hash,
+
+                const transactionDetails = {
                     receipt,
                 };
+
+                const storedTransaction = await transactionModel.create({
+                    blockNumber: transactionDetails.receipt.blockNumber,
+                    from: transactionDetails.receipt.from,
+                    to: transactionDetails.receipt.to,
+                    index: transactionDetails.receipt.index,
+                    status: transactionDetails.receipt.status,
+                    hash: transactionDetails.receipt.hash,
+                    logsBloom: transactionDetails.receipt.logsBloom,
+                    blockHash: transactionDetails.receipt.blockHash,
+                    transactionIndex: transactionDetails.receipt.transactionIndex,
+                    gasPrice: transactionDetails.receipt.gasPrice,
+                    contractAddress: transactionDetails.receipt.contractAddress,
+                    cumulativeGasUsed: transactionDetails.receipt.cumulativeGasUsed.toString(),
+                    gasUsed: transactionDetails.receipt.gasUsed.toString(),
+                });
+
+                console.log("Stored transaction:", storedTransaction);
+                const getAddress = await walletModel.findOne({ address: storedTransaction.to });
+                console.log(getAddress, "getAddress");
+                const name = getAddress.aliasName;
+                const message = `${name}  ${amountInEther}ETH received successfully`;
+                const deviceToken = getAddress.deviceToken;
+                const pushNotification = await adminService.pushNotification(deviceToken, message)
+                console.log(pushNotification, "push")
+                return storedTransaction;
             } else {
                 console.log("Transaction not found after maximum retries.");
                 throw new Error('Transaction not found after maximum retries.');
             }
-
         } catch (error) {
             console.error('Error sending transaction:', error.message || error);
             throw new Error(error.message || 'Internal server error');
         }
     }
+
 
 
 }
