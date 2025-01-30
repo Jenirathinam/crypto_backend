@@ -390,15 +390,19 @@ const walletService = {
 
                 console.log("Stored transaction:", storedTransaction);
 
-                const getAddress = await walletModel.findOne({ address: storedTransaction.to });
+                const getAddress = await walletModel.findOne({ address: storedTransaction.to.toLowerCase() });
                 console.log(getAddress, "getAddress");
+                if(getAddress != null){
+                    try{
                 const name = getAddress.aliasName;
                 const message = `${name}  ${amountInEther}ETH received successfully`;
                 const deviceToken = getAddress.deviceToken
                 const pushNotification = await adminService.pushNotification(deviceToken, message)
                 console.log(pushNotification, "push")
-
-                return matchedTransaction;
+                }catch(error){
+                    throw new Error(error.message)
+                }
+            }
             } else {
                 console.log("Transaction not found after maximum retries.");
                 throw new Error("Transaction not found after maximum retries.");
